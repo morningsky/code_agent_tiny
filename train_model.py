@@ -16,6 +16,9 @@ from trl import GRPOConfig, GRPOTrainer
 from transformers import AutoTokenizer
 from reward_functions import combined_reward
 import wandb
+import re
+import glob
+import sys
 
 
 def generate_completion(model, prompt, tokenizer):
@@ -64,95 +67,123 @@ def save_results(results, filename):
             f.write(f"生成结果:\n{result['completion']}\n\n")
             f.write("-" * 80 + "\n\n")
 
-def plot_training_metrics(output_dir):
-    """绘制训练指标图表"""
-    try:
-        api = wandb.Api()
-        run = api.run(f"{wandb.run.entity}/{wandb.run.project}/{wandb.run.id}")
-        
-        history = run.history()
-        
-        steps = history["_step"].tolist()
-        loss = history["train/loss"].tolist()
-        kl_div = history["train/kl_div"].tolist()
-        rewards = history["train/rewards/mean"].tolist()
-        
-        # 创建标准训练指标图表
-        fig, axes = plt.subplots(3, 1, figsize=(10, 15), sharex=True)
-        
-        axes[0].plot(steps, loss, 'b-')
-        axes[0].set_title("Training Loss")
-        axes[0].set_ylabel("Loss Value")
-        axes[0].grid(True)
-        
-        axes[1].plot(steps, kl_div, 'r-')
-        axes[1].set_title("KL Divergence")
-        axes[1].set_ylabel("KL Divergence Value")
-        axes[1].grid(True)
-        
-        axes[2].plot(steps, rewards, 'g-')
-        axes[2].set_title("Average Reward")
-        axes[2].set_ylabel("Reward Value")
-        axes[2].set_xlabel("Training Steps")
-        axes[2].grid(True)
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, "training_metrics.png"))
-        plt.close()
-        
-        try:
-            correctness_rewards = history["train/rewards/correctness"].tolist() if "train/rewards/correctness" in history.column_names() else []
-            execution_rewards = history["train/rewards/execution_time"].tolist() if "train/rewards/execution_time" in history.column_names() else []
-            simplicity_rewards = history["train/rewards/simplicity"].tolist() if "train/rewards/simplicity" in history.column_names() else []
-            
-            if not correctness_rewards and "correctness" in history.column_names():
-                correctness_rewards = history["correctness"].tolist()
-            if not execution_rewards and "execution_time" in history.column_names():
-                execution_rewards = history["execution_time"].tolist()
-            if not simplicity_rewards and "simplicity" in history.column_names():
-                simplicity_rewards = history["simplicity"].tolist()
-            
-            if correctness_rewards or execution_rewards or simplicity_rewards:
-                reward_fig, reward_ax = plt.subplots(figsize=(12, 8))
-                
-                if correctness_rewards:
-                    reward_ax.plot(steps[:len(correctness_rewards)], correctness_rewards, 'b-', label='correctness reward')
-                if execution_rewards:
-                    reward_ax.plot(steps[:len(execution_rewards)], execution_rewards, 'r-', label='execution time reward')
-                if simplicity_rewards:
-                    reward_ax.plot(steps[:len(simplicity_rewards)], simplicity_rewards, 'g-', label='simplicity reward')
-                
-                reward_ax.set_title("reward components")
-                reward_ax.set_ylabel("reward value")
-                reward_ax.set_xlabel("training steps")
-                reward_ax.legend()
-                reward_ax.grid(True)
-                
-                plt.tight_layout()
-                plt.savefig(os.path.join(output_dir, "reward_components.png"))
-                plt.close()
-                
-                print(f"各类型奖励变化趋势图已保存到 {os.path.join(output_dir, 'reward_components.png')}")
-        except Exception as e:
-            print(f"绘制独立奖励图表时出错: {str(e)}")
-        
-        print(f"训练指标图表已保存到 {os.path.join(output_dir, 'training_metrics.png')}")
-    except Exception as e:
-        print(f"绘制训练指标图表时出错: {str(e)}")
-
-def clean_memory():
-    """清理内存，用于减少内存压力"""
-    gc.collect()
+def plot_reward_components_from_log(output_dir, log_dir=None):
+    """从日志文件提取并绘制奖励组件图表"""
     
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+    # 查找最新的日志文件
+    if log_dir is None:
+        log_dir = os.path.join(output_dir, "logs")
+    
+    # 尝试从控制台输出日志中提取
+    log_files = glob.glob(os.path.join(log_dir, "*.out")) + glob.glob(os.path.join(log_dir, "*.log"))
+    if not log_files:
+        print(f"在 {log_dir} 中未找到日志文件")
+        return
         
-    print("内存已清理")
+    log_file = max(log_files, key=os.path.getmtime)
+    print(f"使用日志文件: {log_file}")
+    
+    # 数据容器
+    steps = []
+    correctness_values = []
+    execution_values = []
+    simplicity_values = []
+    combined_values = []
+    
+    # 读取日志内容
+    try:
+        with open(log_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except:
+        try:
+            with open(log_file, 'r', encoding='latin-1') as f:
+                content = f.read()
+        except Exception as e:
+            print(f"无法读取日志文件: {e}")
+            return
+    
+    # 提取步骤数和每个reward组件
+    # 从奖励计算日志中提取
+    reward_blocks = re.findall(r'===== 奖励计算开始 =====.*?===== 奖励计算结束 =====', content, re.DOTALL)
+    
+    step = 0
+    for block in reward_blocks:
+        step += 1  # 每个奖励块视为一个步骤
+        
+        # 提取各组件奖励
+        correctness_match = re.search(r"正确性=([+-]?\d+\.\d+)", block)
+        execution_match = re.search(r"执行时间=([+-]?\d+\.\d+)", block)
+        simplicity_match = re.search(r"简洁性=([+-]?\d+\.\d+)", block)
+        combined_match = re.search(r"综合=([+-]?\d+\.\d+)", block)
+        
+        if correctness_match and execution_match and simplicity_match and combined_match:
+            steps.append(step)
+            correctness_values.append(float(correctness_match.group(1)))
+            execution_values.append(float(execution_match.group(1)))
+            simplicity_values.append(float(simplicity_match.group(1)))
+            combined_values.append(float(combined_match.group(1)))
+    
+    if not steps:
+        print("未从日志中找到奖励数据")
+        return
+        
+    # 绘制奖励组件图表
+    plt.figure(figsize=(12, 8))
+    plt.plot(steps, correctness_values, 'b-', label='correctness')
+    plt.plot(steps, execution_values, 'r-', label='execution_time')
+    plt.plot(steps, simplicity_values, 'g-', label='simplicity')
+    plt.plot(steps, combined_values, 'k--', label='combined')
+    plt.title("Reward Components")
+    plt.xlabel("Training Steps")
+    plt.ylabel("Reward Value")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "reward_components.png"))
+    plt.close()
+    print(f"奖励组件图表已保存到 {os.path.join(output_dir, 'reward_components.png')}")
+    
+    # 绘制基本训练指标
+    plt.figure(figsize=(10, 6))
+    plt.plot(steps, combined_values, 'b-')
+    plt.title("Combined Reward")
+    plt.xlabel("Training Steps")
+    plt.ylabel("Reward Value")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "training_reward.png"))
+    plt.close()
+    print(f"训练奖励图表已保存到 {os.path.join(output_dir, 'training_reward.png')}")
+
+# 添加日志重定向类
+class Logger:
+    def __init__(self, filename):
+        self.terminal = sys.stdout
+        self.log = open(filename, 'w', encoding='utf-8')
+        
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()  # 实时写入文件
+        
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+        
+    def close(self):
+        self.log.close()
 
 def main():
     output_dir = "code_agent"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "logs"), exist_ok=True)
+    
+    # 设置日志重定向
+    log_file = "log.txt"
+    logger = Logger(log_file)
+    sys.stdout = logger
+    
+    print(f"开始训练，日志将同时保存到 {log_file}")
     
     num_gpus = torch.cuda.device_count()
     device_ids = list(range(min(7, num_gpus)))  
@@ -164,7 +195,6 @@ def main():
         device_name = "CPU"
         print("未检测到GPU，将使用CPU训练")
     
-    clean_memory()
     
     try:
         dataset = load_from_disk("code_dataset")
@@ -189,31 +219,9 @@ def main():
 
     training_args = GRPOConfig(
         output_dir=output_dir,
-        logging_dir=os.path.join(output_dir, "logs"),
         num_train_epochs=3,
-        
-        per_device_train_batch_size=8,
-        gradient_accumulation_steps=1,
-        
-        fp16=torch.cuda.is_available(),
-        
-        max_grad_norm=1.0,
-        learning_rate=5e-5,
-        optim="adamw_torch",
-        
-        dataloader_pin_memory=True,
-        dataloader_num_workers=4,
-        remove_unused_columns=True,
-        
-        use_cpu=False,
-        local_rank=-1, 
-        
-        ddp_find_unused_parameters=False,
-        
-        report_to=["wandb"],
-        logging_strategy="steps",
-        logging_steps=1,
-        save_strategy="epoch",
+        report_to=["wandb"], 
+        logging_steps=10
     )
 
     print("初始化GRPO训练器...")
@@ -230,7 +238,6 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2-0.5B-Instruct")
     
     print("训练前进行模型评估...")
-    clean_memory()
     before_results = []
     for item in dataset:
         completion = generate_completion(trainer.model, item["prompt"], tokenizer)
@@ -243,16 +250,13 @@ def main():
     print(f"训练前结果已保存到 {os.path.join(output_dir, 'before_training_results.txt')}")
 
     print("开始GRPO训练...")
-    clean_memory()
     trainer.train()
     print("GRPO训练完成！")
-    clean_memory()
 
     trainer.save_model(os.path.join(output_dir, "final_model"))
     print(f"训练后的模型已保存到 {os.path.join(output_dir, 'final_model')}")
 
     print("训练后进行模型评估...")
-    clean_memory()
     after_results = []
     for item in dataset:
         completion = generate_completion(trainer.model, item["prompt"], tokenizer)
@@ -264,11 +268,15 @@ def main():
     save_results(after_results, os.path.join(output_dir, "after_training_results.txt"))
     print(f"训练后结果已保存到 {os.path.join(output_dir, 'after_training_results.txt')}")
 
-    print("绘制训练指标图表...")
-    plot_training_metrics(output_dir)
-    
+    print("从日志绘制奖励组件图表...")
+    plot_reward_components_from_log(output_dir)
     wandb.finish()
-    print("训练流程完成！")
+    
+    # 恢复标准输出并关闭日志文件
+    sys.stdout = logger.terminal
+    logger.close()
+    print(f"训练流程完成！日志已保存到 {log_file}")
+    print(f"可以使用 python parse.py 解析日志文件生成奖励组件图表")
 
 if __name__ == "__main__":
     main() 

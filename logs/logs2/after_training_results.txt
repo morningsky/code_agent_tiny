@@ -1,0 +1,246 @@
+示例 #1
+提示:
+优化以下求斐波那契数列的函数，提高其效率：
+```python
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+```
+
+生成结果:
+优化以下求斐波那契数列的函数，提高其效率：
+```python
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+``` 我们可以使用动态规划的方法来解决这个问题。下面是一个改进版本：
+
+```python
+def fibonacci_dp(n, memo={}):
+    # 如果当前数字不存在于memo中，就用初始化值赋给它。
+    if n not in memo:
+        memo[n] = fibonacci_dp(n-1, memo)+fibonacci_dp(n-2, memo)
+    return memo[n]
+
+# 示例
+print(fibonacci(5))   # 应输出: 8
+print(fibonacci_dp(5)) # 应输出: 8
+```
+
+这个方法使用一个字典（`memo`）来存储已计算过的斐波那契数列的结果，这样在每次调用`fibonacci`或`fibonacci_dp`时只需要更新现有的结果。
+
+这种方法的时间复杂度是O(n)，其中n是数字的数量，因为我们需要递归地调用每个数字一次。空间复杂度也是O(n)，因为我们有两层动态规划表（一个表示当前状态的前两个数字，另一个表示它们之前的状态）。
+
+--------------------------------------------------------------------------------
+
+示例 #2
+提示:
+简化以下计算阶乘的函数：
+```python
+def factorial(n):
+    result = 1
+    for i in range(1, n + 1):
+        result = result * i
+    return result
+```
+
+生成结果:
+简化以下计算阶乘的函数：
+```python
+def factorial(n):
+    result = 1
+    for i in range(1, n + 1):
+        result = result * i
+    return result
+``` 
+这个函数可以将任何非负整数n转换为其阶乘。阶乘是自然数（0到n-1）的乘积。例如，factorial(4) 的值将是4*3*2*1 = 24。
+
+然而，你的任务要求的是一个更复杂且需要使用多步骤推理和逻辑判断的函数，而不是直接求解因子总数。请考虑如何确保你的函数能够处理所有可能的情况，并且具有良好的健壮性。 首先，我们来修改一下 `factorial` 函数。这里有一个不使用递归的版本：
+
+```python
+def factorial(n):
+    if n == 0:
+        return 1
+    else:
+        return n * factorial(n - 1)
+```
+
+现在我们可以尝试修改 `factorial` 以支持更多的输入，以及处理可能的情况，如负数或非整数输入。下面是改进后的函数：
+
+```python
+import math
+
+def factorial(n):
+    """
+    计算给定整数的阶乘。
+    
+    输入:
+    - n: 阶乘数
+    输出:
+    - n 的阶乘
+    """
+    if not isinstance(n, int) or n < 0:
+        raise ValueError("输入必须是一个非负整数")
+        
+    result = 1
+    if n == 0:
+        return 1
+    else:
+        while True:
+            n -= 1
+            if n < 0:
+                break
+            else:
+                result *= n
+                # 在循环中添加额外的代码来检查是否已经到达最小值
+                # 可能会遇到负数导致无限循环问题，我们需要找到一种方法来处理这种情况
+    return result
+
+# 测试示例
+print(factorial(5))  # 应该输出 120
+print(factorial(-1)) # 应该输出 ValueError
+print(factorial(0))  # 应该输出 1
+print(factorial(100))  # 应该输出 3628800
+```
+
+在这个修正的 `factorial` 函数中，我们首先检查输入是否为一个整数。如果输入不是整数，则
+
+--------------------------------------------------------------------------------
+
+示例 #3
+提示:
+修改以下求最大公约数的函数，使其更高效：
+```python
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+```
+
+生成结果:
+修改以下求最大公约数的函数，使其更高效：
+```python
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+``` 以下是改进后的求最大公约数的 Python 函数：
+
+```python
+from math import gcd
+
+def gcd(a, b):
+    while b != 0:
+        a, b = b, a % b
+    return a
+
+# 测试用例
+print(gcd(12, 8)) # 应输出 4
+print(gcd(35, 19)) # 应输出 1
+```
+
+现在这个函数在处理较大的整数时会更快。它使用了数学中的辗转相除法（欧几里得算法），是一种高效且常用于计算最大公约数的方法。注意，这个算法的时间复杂度是 O(log min(a, b)), 即 O(min(|a|, |b|)）。但是，为了优化性能，你可以通过调整 `a` 和 `b` 的值来减少计算量。例如，如果 `a` 或者 `b` 没有足够大，那么你可以在原地对它们进行比较，并确保不会影响最后的结果。但在这个问题中，直接将 `gcd` 方法作为一个函数是一个很好的选择，因为它在需要时能够被调用并返回结果。
+
+--------------------------------------------------------------------------------
+
+示例 #4
+提示:
+优化以下判断素数的函数：
+```python
+def is_prime(n):
+    if n <= 1:
+        return False
+    for i in range(2, n):
+        if n % i == 0:
+            return False
+    return True
+```
+
+生成结果:
+优化以下判断素数的函数：
+```python
+def is_prime(n):
+    if n <= 1:
+        return False
+    for i in range(2, n):
+        if n % i == 0:
+            return False
+    return True
+``` 要修复和优化给定的函数 `is_prime`，我们可以将条件检查简化如下：
+
+```python
+import math
+
+def is_prime(n):
+    if n <= 1:
+        return False
+    if n <= 3:
+        return True
+    if n % 2 == 0 or n % 3 == 0:
+        return False
+    
+    # We've found the first non-nice factor; finally, we check all numbers up to the square root of 'n'
+    for i in range(5, int(math.sqrt(n)) + 1, 6):  
+        if n % i == 0 or n % (i + 2) == 0: 
+            return False
+    return True
+
+# Check function with provided data points
+assert is_prime(7) == True, "Test case 1 failed"
+assert is_prime(10) == False, "Test case 2 failed"
+assert is_prime(1), "Test case 3 failed"
+print("All test cases passed!")
+```
+
+这个修订后的函数现在可以更有效地处理素数问题。它首先会检查 `n` 是否小于或等于1（因为没有奇数不是素数），然后根据 `n` 是否为偶数或质数进行进一步的检查。这种方法通过使用范围控制来减少重复计算，并在遍历到偶数或质数时立即返回假值以避免递归调用。这样可以使算法的时间复杂度从O(sqrt(n))降低到了O(sqrt(n)), 这是一个重要的改进。
+
+### 注意事项：
+- **代码效率**：此解决方案采用了更简洁、高效的逻辑而不是直接使用递归。对于大数据集，此解决方案可能比直接使用递归来更快。
+- **边界情况处理**：如果输入的数字小于2，此函数通常不会输出任何信息，因此该解决方案在输入为小于2的情况下是正确的。然而，在其他情况下，这可能导致错误的结果。
+- **不正确处理**：确保在测试中包含错误的输入数据点来验证解决方案的功能性是否有效。例如，你可以提供一个实际的素数列表并观察是否可以通过此方法验证这些素数是否都是素数。这样可以
+
+--------------------------------------------------------------------------------
+
+示例 #5
+提示:
+修改以下冒泡排序函数，使其更简洁：
+```python
+def bubble_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(0, n-i-1):
+            if arr[j] > arr[j+1]:
+                arr[j], arr[j+1] = arr[j+1], arr[j]
+    return arr
+```
+
+生成结果:
+修改以下冒泡排序函数，使其更简洁：
+```python
+def bubble_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(0, n-i-1):
+            if arr[j] > arr[j+1]:
+                arr[j], arr[j+1] = arr[j+1], arr[j]
+    return arr
+``` 以下是简化后的冒泡排序函数：
+
+```python
+def bubble_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        # 已经完成排序的部分
+        for j in range(0, n - i - 1):
+            # 如果当前元素大于后一个元素，则交换它们的位置
+            if arr[j] > arr[j + 1]:
+                arr[j], arr[j + 1] = arr[j + 1], arr[j]
+    return arr
+```
+
+这个版本的 `bubble_sort` 函数只需要检查一次遍历数组，而不需要中间循环来比较每个元素。此外，它还返回排序后的数组。现在可以将这个简单的冒泡排序函数替换为上面的简单函数。
+
+--------------------------------------------------------------------------------
+

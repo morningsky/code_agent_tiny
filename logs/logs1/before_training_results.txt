@@ -1,0 +1,214 @@
+示例 #1
+提示:
+优化以下求斐波那契数列的函数，提高其效率：
+```python
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+```
+
+生成结果:
+优化以下求斐波那契数列的函数，提高其效率：
+```python
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+``` 这个问题似乎是一个编程题而非数学题目。不过，我可以为您提供一个在Python中实现这个功能的简单方式。
+
+首先，我们来简化一下这个斐波那契数列：Fibonacci numbers are a sequence of numbers in which each number is the sum of the two preceding ones, starting from 0 and 1. So, F(0) = 0 and F(1) = 1.
+
+现在，我们可以定义一个名为`fibonacci`的函数，它接收一个整数参数n，然后返回相应的斐波那契数n。
+
+下面是改进后的代码：
+
+```python
+def fibonacci(n):
+    # 初始化前两个斐波那契数作为n
+    fib_n_minus_1, fib_n_minus_2 = 0, 1
+
+    # 模拟计算前n个斐波那契数的过程
+    for i in range(2, n+1):
+        # 计算下一个斐波那契数
+        next_fib = fib_n_minus_1 + fib_n_minus_2
+        # 更新当前和下一个数
+        fib_n_minus_1, fib_n_minus_2 = fib_n_minus_2, next_fib
+    return fib_n_minus_1
+```
+
+这段代码的时间复杂度为O(n)，因为我们只需要遍历前n个数字即可。空间复杂度也较低，因为我们只需要常量级的空间来存储每个数，并没有使用额外的数据结构。然而，这并不反映实际的运行时间或性能。在大多数情况下，这个算法应该非常高效。
+
+--------------------------------------------------------------------------------
+
+示例 #2
+提示:
+简化以下计算阶乘的函数：
+```python
+def factorial(n):
+    result = 1
+    for i in range(1, n + 1):
+        result = result * i
+    return result
+```
+
+生成结果:
+简化以下计算阶乘的函数：
+```python
+def factorial(n):
+    result = 1
+    for i in range(1, n + 1):
+        result = result * i
+    return result
+``` 在Python中，我们不能直接修改和扩展已存在函数以处理特定问题。但我们可以创建一个函数来实现你的要求。在Python中，使用`range()`方法可以将数字从0到n（包括n）循环，因此可以直接通过生成数列来计算阶乘。
+
+这里是一个简单的实现：
+
+```python
+def factorial(n):
+    if n == 0:
+        return 1
+    else:
+        return n * factorial(n - 1)
+
+print(factorial(5)) # 输出: 120
+
+在这个例子中，`factorial`函数首先检查输入参数`n`是否为零。如果是，则返回1（因为任何非零自然数的阶乘都是1）。否则，它会调用自身，然后递归地将`n-1`作为第一个参数传入，并返回`n`乘以`factorial(n-1)`的结果。
+
+这就是如何正确地编写并运行这个代码的功能。
+
+--------------------------------------------------------------------------------
+
+示例 #3
+提示:
+修改以下求最大公约数的函数，使其更高效：
+```python
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+```
+
+生成结果:
+修改以下求最大公约数的函数，使其更高效：
+```python
+def gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return a
+``` 你可以使用欧几里得算法来优化这个求最大公约数的函数。以下是改进后的代码：
+
+```python
+import math
+
+def gcd(a, b):
+    if b == 0:
+        return a
+    else:
+        return gcd(b, a % b)
+
+# 测试用例
+print(gcd(48, 64)) # 应输出24
+```
+
+在这个版本中，我们首先检查b是否为0，如果是，就返回a，因为这是原问题的答案。然后，如果b不为0，则直接返回gcd(b, a % b)，这里利用了数学中的基本原理：当一个整数可以被整除时，它的所有因数（除了1和它本身）都等于该整数除以自己得到的结果。因此，我们可以将这个问题简化为求两个非零整数的最大公约数。
+
+--------------------------------------------------------------------------------
+
+示例 #4
+提示:
+优化以下判断素数的函数：
+```python
+def is_prime(n):
+    if n <= 1:
+        return False
+    for i in range(2, n):
+        if n % i == 0:
+            return False
+    return True
+```
+
+生成结果:
+优化以下判断素数的函数：
+```python
+def is_prime(n):
+    if n <= 1:
+        return False
+    for i in range(2, n):
+        if n % i == 0:
+            return False
+    return True
+``` 这个问题可以通过使用递归来解决，因为一旦找到一个因子，那么所有的大于这个因子的质因数都可以被排除。
+
+以下是Python代码：
+
+```python
+import math
+
+def is_prime(n):
+    if n <= 1:
+        return False
+    
+    if n == 2:
+        return True
+    if n % 2 == 0:
+        return False
+
+    for i in range(3, int(math.sqrt(n)) + 1, 2): 
+        if n % i == 0:
+            return False
+    return True
+```
+
+这个函数首先检查输入的数字是否小于等于1。如果是，则返回False，因为只有0和1是素数。然后检查n是否为2，如果n=2则直接返回True。接下来，我们尝试从3到sqrt(n)，如果发现存在可以整除n的因子（即n是一个偶数）就返回False。最后，如果没有找到这样的因子，我们就认为n是素数，并返回True。这个算法的时间复杂度是O(log n)。
+
+--------------------------------------------------------------------------------
+
+示例 #5
+提示:
+修改以下冒泡排序函数，使其更简洁：
+```python
+def bubble_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(0, n-i-1):
+            if arr[j] > arr[j+1]:
+                arr[j], arr[j+1] = arr[j+1], arr[j]
+    return arr
+```
+
+生成结果:
+修改以下冒泡排序函数，使其更简洁：
+```python
+def bubble_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(0, n-i-1):
+            if arr[j] > arr[j+1]:
+                arr[j], arr[j+1] = arr[j+1], arr[j]
+    return arr
+``` 在这个版本的 `bubble_sort` 函数中，我们首先检查 `n` 是否为奇数。如果它不是奇数，则直接返回原数组，因为不需要进行任何调整。否则，我们将循环次数减少到 `i/2`，这是因为每次迭代时交换位置只会改变一半元素的位置。
+
+以下是改进后的代码：
+
+```python
+def bubble_sort(arr):
+    n = len(arr)
+    
+    # 如果n是奇数，直接返回原始数组
+    if n % 2 == 0:
+        return arr
+    
+    # 初始化两个指针，从第一个元素开始
+    for i in range(int(n / 2)):
+        for j in range(i + 1, n):
+            if arr[j] < arr[j - 1]:
+                arr[j], arr[j - 1] = arr[j - 1], arr[j]
+    
+    return arr
+```
+
+请注意，虽然这个修复了冒泡排序算法中的一个缺点，但它并没有改变冒泡排序本身的功能：按照升序排列元素。因此，即使 `int(n / 2)` 的计算结果总是相同的（实际上它是 `n / 2`），该代码仍然可以正确地排序列表。
+
+--------------------------------------------------------------------------------
+

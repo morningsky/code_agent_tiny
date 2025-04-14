@@ -139,11 +139,9 @@ def reward_execution_time(completions, prompts=None, **kwargs):
                 namespace[func_name](*test_case["args"])
             execution_time = time.time() - start_time
             
-            if execution_time < 0.001:
-                reward = 1.0
-            else:
-                reward = 1.0 * math.exp(-execution_time)  
-                reward = max(-2.0, reward)
+            # 移除特殊阈值，使用更陡峭的指数函数
+            reward = 1.0 * math.exp(-50 * execution_time)  # 使用-50作为系数而不是-1
+            reward = max(-2.0, min(1.0, reward))  # 限制在[-2.0, 1.0]范围内
             
             print(f"函数 {func_name} 执行时间: {execution_time:.6f}秒, 奖励: {reward:.4f}")
             rewards.append(reward)
@@ -173,10 +171,18 @@ def reward_simplicity(completions, prompts=None, **kwargs):
             lines = count_lines(code)
             chars = len(code)
             
-            line_reward = max(-2.0, min(1.0, 1.0 - 0.1 * lines))
-            char_reward = max(-2.0, min(1.0, 1.0 - 0.001 * chars))
+            # 行数使用缓和的线性函数
+            line_reward = max(-1.0, min(1.0, 1.0 - 0.067 * (lines - 5)))
             
-            reward = 0.6 * line_reward + 0.4 * char_reward
+            # 字符数使用对数衰减函数
+            if chars <= 100:
+                char_reward = 1.0
+            else:
+                char_reward = 1.0 - 0.7 * math.log10(chars / 100)
+                char_reward = max(-1.0, char_reward)
+            
+            reward = 0.5 * line_reward + 0.5 * char_reward
+            
             print(f"代码简洁性评估: 行数={lines}, 字符数={chars}, 奖励={reward:.4f}")
             rewards.append(reward)
             
@@ -209,8 +215,8 @@ def combined_reward(completions, prompts=None, **kwargs):
             print(f"组合奖励 #{i}: 代码不正确，总奖励设为-2.0")
         else:
             reward = (
-                0.5 * correctness_rewards[i] + 
-                0.3 * execution_rewards[i] + 
+                0.6 * correctness_rewards[i] + 
+                0.2 * execution_rewards[i] + 
                 0.2 * simplicity_rewards[i]
             )
             combined_rewards.append(reward)
@@ -218,3 +224,30 @@ def combined_reward(completions, prompts=None, **kwargs):
     
     print("===== 奖励计算结束 =====\n")
     return combined_rewards 
+
+# def combined_reward2(responses, prompts, **kwargs):
+#     # 增加对无意义重复的惩罚
+#     repetition_penalty = -2.0 * detect_repetitive_patterns(responses)
+    
+#     # 增加对完整代码块的奖励
+#     completeness_reward = 1.0 * has_complete_code_blocks(responses)
+    
+#     # 对元讨论降低奖励
+#     meta_discussion_penalty = -1.0 * contains_meta_discussion(responses)
+    
+#     # 原有奖励
+#     correctness = reward_correctness(responses, prompts)
+#     execution_time = reward_execution_time(responses)
+#     simplicity = reward_simplicity(responses)
+    
+#     # 调整权重
+#     final_reward = (
+#         2.0 * correctness +
+#         0.5 * execution_time +
+#         0.8 * simplicity +
+#         1.5 * completeness_reward +
+#         repetition_penalty +
+#         meta_discussion_penalty
+#     )
+    
+#     return final_reward
