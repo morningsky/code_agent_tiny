@@ -1,4 +1,7 @@
 # 实验结果记录 📊
+## 实验链接
+logs1: https://wandb.ai/xiaobei_-mini/code-improvement-agent/runs/ycqj3amb?nw=nwuserxiaobei_
+logs2: https://wandb.ai/xiaobei_-mini/code-improvement-agent/runs/5tkpvsqu?nw=nwuserxiaobei_
 
 ## 实验概览
 
