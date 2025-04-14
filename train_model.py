@@ -6,6 +6,7 @@ CodeAgent GRPO训练主脚本
 """
 
 import os
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,17 +17,10 @@ from transformers import AutoTokenizer
 from reward_functions import combined_reward
 import wandb
 
+
 def generate_completion(model, prompt, tokenizer):
     """使用模型生成代码完成"""
-    generate_device = "cpu"
-    
-    original_device = None
-    if hasattr(model, 'device') and 'mps' in str(model.device):
-        print("模型在MPS设备上，生成时临时使用CPU以确保稳定性")
-        original_device = model.device
-        generate_model = model.to("cpu")
-    else:
-        generate_model = model
+    generate_device = model.device
         
     inputs = tokenizer(prompt, return_tensors="pt")
     inputs = {k: v.to(generate_device) for k, v in inputs.items()}
@@ -36,7 +30,7 @@ def generate_completion(model, prompt, tokenizer):
     
     with torch.no_grad():
         try:
-            outputs = generate_model.generate(
+            outputs = model.generate(
                 input_ids=inputs["input_ids"],
                 attention_mask=inputs["attention_mask"],
                 max_length=512,
@@ -49,7 +43,7 @@ def generate_completion(model, prompt, tokenizer):
             completion = tokenizer.decode(outputs[0], skip_special_tokens=True)
         except Exception as e:
             print(f"生成过程中出错: {e}，尝试使用更保守的参数")
-            outputs = generate_model.generate(
+            outputs = model.generate(
                 input_ids=inputs["input_ids"],
                 attention_mask=inputs["attention_mask"],
                 max_length=256,
@@ -58,9 +52,6 @@ def generate_completion(model, prompt, tokenizer):
                 use_cache=True,
             )
             completion = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
-    if original_device is not None:
-        model.to(original_device)
             
     return completion
 
@@ -86,6 +77,7 @@ def plot_training_metrics(output_dir):
         kl_div = history["train/kl_div"].tolist()
         rewards = history["train/rewards/mean"].tolist()
         
+        # 创建标准训练指标图表
         fig, axes = plt.subplots(3, 1, figsize=(10, 15), sharex=True)
         
         axes[0].plot(steps, loss, 'b-')
@@ -108,9 +100,45 @@ def plot_training_metrics(output_dir):
         plt.savefig(os.path.join(output_dir, "training_metrics.png"))
         plt.close()
         
-        print(f"Training metrics chart saved to {os.path.join(output_dir, 'training_metrics.png')}")
+        try:
+            correctness_rewards = history["train/rewards/correctness"].tolist() if "train/rewards/correctness" in history.column_names() else []
+            execution_rewards = history["train/rewards/execution_time"].tolist() if "train/rewards/execution_time" in history.column_names() else []
+            simplicity_rewards = history["train/rewards/simplicity"].tolist() if "train/rewards/simplicity" in history.column_names() else []
+            
+            if not correctness_rewards and "correctness" in history.column_names():
+                correctness_rewards = history["correctness"].tolist()
+            if not execution_rewards and "execution_time" in history.column_names():
+                execution_rewards = history["execution_time"].tolist()
+            if not simplicity_rewards and "simplicity" in history.column_names():
+                simplicity_rewards = history["simplicity"].tolist()
+            
+            if correctness_rewards or execution_rewards or simplicity_rewards:
+                reward_fig, reward_ax = plt.subplots(figsize=(12, 8))
+                
+                if correctness_rewards:
+                    reward_ax.plot(steps[:len(correctness_rewards)], correctness_rewards, 'b-', label='correctness reward')
+                if execution_rewards:
+                    reward_ax.plot(steps[:len(execution_rewards)], execution_rewards, 'r-', label='execution time reward')
+                if simplicity_rewards:
+                    reward_ax.plot(steps[:len(simplicity_rewards)], simplicity_rewards, 'g-', label='simplicity reward')
+                
+                reward_ax.set_title("reward components")
+                reward_ax.set_ylabel("reward value")
+                reward_ax.set_xlabel("training steps")
+                reward_ax.legend()
+                reward_ax.grid(True)
+                
+                plt.tight_layout()
+                plt.savefig(os.path.join(output_dir, "reward_components.png"))
+                plt.close()
+                
+                print(f"各类型奖励变化趋势图已保存到 {os.path.join(output_dir, 'reward_components.png')}")
+        except Exception as e:
+            print(f"绘制独立奖励图表时出错: {str(e)}")
+        
+        print(f"训练指标图表已保存到 {os.path.join(output_dir, 'training_metrics.png')}")
     except Exception as e:
-        print(f"Error plotting training metrics: {str(e)}")
+        print(f"绘制训练指标图表时出错: {str(e)}")
 
 def clean_memory():
     """清理内存，用于减少内存压力"""
@@ -119,26 +147,22 @@ def clean_memory():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         
-    if hasattr(torch, 'mps'):
-        try:
-            torch.mps.empty_cache()
-        except RuntimeError as e:
-            print(f"MPS内存清理警告: {e}，但训练将继续")
-        
     print("内存已清理")
 
 def main():
-    output_dir = "code_improvement_agent"
+    output_dir = "code_agent"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "logs"), exist_ok=True)
     
-    os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    if "PYTORCH_MPS_HIGH_WATERMARK_RATIO" in os.environ:
-        del os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"]
-    if "PYTORCH_MPS_LOW_WATERMARK_RATIO" in os.environ:
-        del os.environ["PYTORCH_MPS_LOW_WATERMARK_RATIO"]
-    if "PYTORCH_ENABLE_MPS_FALLBACK" in os.environ:
-        del os.environ["PYTORCH_ENABLE_MPS_FALLBACK"]
+    num_gpus = torch.cuda.device_count()
+    device_ids = list(range(min(7, num_gpus)))  
+    
+    if len(device_ids) > 0:
+        device_name = f"CUDA ({len(device_ids)}个GPU)"
+        print(f"使用{len(device_ids)}个GPU进行训练: {device_ids}")
+    else:
+        device_name = "CPU"
+        print("未检测到GPU，将使用CPU训练")
     
     clean_memory()
     
@@ -152,15 +176,16 @@ def main():
         dataset = create_code_dataset()
     
     wandb.init(project="code-improvement-agent", name="grpo_training")
+
+    wandb.define_metric("train/rewards/correctness")
+    wandb.define_metric("train/rewards/execution_time")
+    wandb.define_metric("train/rewards/simplicity")
     
     seed = 42
     torch.manual_seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-
-    device_name = "CPU"
-    print(f"强制使用CPU训练，绕过MPS检测问题")
 
     training_args = GRPOConfig(
         output_dir=output_dir,
@@ -170,17 +195,20 @@ def main():
         per_device_train_batch_size=8,
         gradient_accumulation_steps=1,
         
-        fp16=False,
+        fp16=torch.cuda.is_available(),
         
         max_grad_norm=1.0,
         learning_rate=5e-5,
         optim="adamw_torch",
         
-        dataloader_pin_memory=False,
-        dataloader_num_workers=0,
+        dataloader_pin_memory=True,
+        dataloader_num_workers=4,
         remove_unused_columns=True,
         
-        use_cpu=True,
+        use_cpu=False,
+        local_rank=-1, 
+        
+        ddp_find_unused_parameters=False,
         
         report_to=["wandb"],
         logging_strategy="steps",
@@ -190,8 +218,6 @@ def main():
 
     print("初始化GRPO训练器...")
     
-    original_device = torch.device("cpu")
-    
     trainer = GRPOTrainer(
         model="Qwen/Qwen2-0.5B-Instruct",
         args=training_args,
@@ -199,9 +225,7 @@ def main():
         reward_funcs=combined_reward,
     )
     
-    if hasattr(trainer.model, 'to'):
-        trainer.model = trainer.model.to('cpu')
-    print(f"已确认模型在CPU设备上: {trainer.model.device}")
+    print(f"模型已初始化在设备: {trainer.model.device}")
     
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2-0.5B-Instruct")
     
@@ -220,32 +244,8 @@ def main():
 
     print("开始GRPO训练...")
     clean_memory()
-    try:
-        trainer.train()
-        print("GRPO训练完成！")
-    except RuntimeError as e:
-        if "CUDA out of memory" in str(e) or "MPS backend out of memory" in str(e):
-            print(f"GPU内存不足: {e}")
-            print("紧急模式：切换到CPU训练...")
-            try:
-                trainer.save_model(os.path.join(output_dir, "checkpoint_before_oom"))
-                print("已保存当前状态")
-            except:
-                print("无法保存当前状态，继续切换到CPU...")
-            
-            if hasattr(trainer.model, 'to'):
-                trainer.model = trainer.model.to('cpu')
-            
-            trainer.args.use_cpu = True
-            trainer.args.no_cuda = True
-            trainer.args.use_mps_device = False
-            trainer.args.fp16 = False
-            
-            print("使用CPU继续训练...")
-            trainer.train()
-            print("CPU训练完成！")
-        else:
-            raise e
+    trainer.train()
+    print("GRPO训练完成！")
     clean_memory()
 
     trainer.save_model(os.path.join(output_dir, "final_model"))
